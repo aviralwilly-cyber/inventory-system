@@ -1,6 +1,6 @@
 // src/components/FOH.js
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../config/firebase';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { INVENTORY_CATEGORIES as categories } from '../constants/categories';
