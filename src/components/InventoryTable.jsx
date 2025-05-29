@@ -3,7 +3,7 @@ import { db } from '../config/firebase';
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import '../styles/style.css';
 import ParticlesBackground from './ParticlesBackground';
-// import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 const InventoryTable = () => {
   console.log("Component rendered");
