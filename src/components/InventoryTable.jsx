@@ -3,7 +3,7 @@ import { db } from '../config/firebase';
 import { collection, addDoc, getDocs, deleteDoc, updateDoc, doc } from 'firebase/firestore';
 import '../styles/style.css';
 import ParticlesBackground from './ParticlesBackground';
-import { Link } from 'react-router-dom';
+// import { Link } from 'react-router-dom';
 
 const InventoryTable = () => {
   console.log("Component rendered");
@@ -59,23 +59,22 @@ const InventoryTable = () => {
   }, []);
 
   useEffect(() => {
-    console.log("Current items:", items);
-    const fetchItems = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'inventory'));
-        const itemsList = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate?.() || new Date()
-        }));
-        setItems(itemsList.sort((a, b) => b.timestamp - a.timestamp));
-      } catch (error) {
-        console.error('Error fetching items:', error);
-      }
-    };
+  const fetchItems = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'inventory'));
+      const itemsList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate?.() || new Date()
+      }));
+      setItems(itemsList.sort((a, b) => b.timestamp - a.timestamp));
+    } catch (error) {
+      console.error('Error fetching items:', error);
+    }
+  };
 
-    fetchItems();
-  }, []);
+  fetchItems();
+}, []);
 
   const filteredItems = items.filter(item => {
     const matchesCategory = !filterCategory || item.category === filterCategory;
