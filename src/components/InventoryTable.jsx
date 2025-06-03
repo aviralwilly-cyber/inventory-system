@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../config/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { orderBy } from 'lodash';
@@ -26,10 +26,6 @@ const InventoryTable = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState('');
-  const [dateFilter, setDateFilter] = useState({
-    startDate: '',
-    endDate: ''
-  });
   const [isMobile, setIsMobile] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
@@ -47,10 +43,6 @@ const InventoryTable = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(6);
-
-  // Refs for date inputs
-  const startDateRef = useRef(null);
-  const endDateRef = useRef(null);
 
   const categories = [
     { id: 'pops', label: 'Pops' },
@@ -126,20 +118,9 @@ const InventoryTable = () => {
       result = result.filter(item => item.category === filterCategory);
     }
     
-    // Apply date filter
-    if (dateFilter.startDate || dateFilter.endDate) {
-      result = result.filter(item => {
-        const itemDate = item.timestamp;
-        return (
-          (!dateFilter.startDate || itemDate >= new Date(dateFilter.startDate)) &&
-          (!dateFilter.endDate || itemDate <= new Date(dateFilter.endDate))
-        );
-      });
-    }
-    
     // Apply sorting
     return orderBy(result, [sortField], [sortDirection]);
-  }, [items, searchTerm, filterCategory, dateFilter, sortField, sortDirection]);
+  }, [items, searchTerm, filterCategory, sortField, sortDirection]);
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -150,7 +131,7 @@ const InventoryTable = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterCategory, dateFilter, searchTerm]);
+  }, [filterCategory, searchTerm]);
 
   // Handle sorting
   const handleSort = (field) => {
@@ -301,10 +282,6 @@ const InventoryTable = () => {
 
   const clearFilters = () => {
     setFilterCategory('');
-    setDateFilter({
-      startDate: '',
-      endDate: ''
-    });
     setSearchTerm('');
   };
 
@@ -319,11 +296,6 @@ const InventoryTable = () => {
   const totalItems = items.length;
   const totalValue = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
   const lowStockItems = items.filter(item => item.quantity <= (item.threshold || 10)).length;
-
-  const formatDate = (date) => {
-    if (!date) return '';
-    return new Date(date).toLocaleDateString();
-  };
 
   // Notification component
   const Notification = ({ message }) => (
@@ -658,8 +630,8 @@ const InventoryTable = () => {
                   </span>
                 </div>
                 
-                {/* Search bar */}
-                <div className="mb-4">
+                {/* Search bar - Made shorter */}
+                <div className="mb-4 max-w-md">
                   <input
                     type="text"
                     placeholder="Search items..."
@@ -669,49 +641,25 @@ const InventoryTable = () => {
                   />
                 </div>
                 
-                {/* Filters */}
-                <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'} gap-4 mb-4`}>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Category</label>
-                    <select
-                      className="form-input w-full bg-white"
-                      value={filterCategory}
-                      onChange={(e) => setFilterCategory(e.target.value)}
-                    >
-                      <option value="">All Categories</option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
-                    <input
-                      ref={startDateRef}
-                      type="date"
-                      className="form-input w-full bg-white"
-                      value={dateFilter.startDate}
-                      onChange={(e) => setDateFilter({...dateFilter, startDate: e.target.value})}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
-                    <input
-                      ref={endDateRef}
-                      type="date"
-                      className="form-input w-full"
-                      value={dateFilter.endDate}
-                      onChange={(e) => setDateFilter({...dateFilter, endDate: e.target.value})}
-                    />
-                  </div>
+                {/* Filters - Only category filter now */}
+                <div className="mb-4 max-w-xs">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Category</label>
+                  <select
+                    className="form-input w-full bg-white"
+                    value={filterCategory}
+                    onChange={(e) => setFilterCategory(e.target.value)}
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 
                 {/* Active filters display */}
-                {(filterCategory || dateFilter.startDate || dateFilter.endDate || searchTerm) && (
+                {(filterCategory || searchTerm) && (
                   <div className="flex justify-between items-center mb-2 flex-wrap">
                     <div className="flex flex-wrap gap-2">
                       {searchTerm && (
@@ -730,28 +678,6 @@ const InventoryTable = () => {
                           Category: {categories.find(c => c.id === filterCategory)?.label || filterCategory}
                           <button 
                             onClick={() => setFilterCategory('')}
-                            className="ml-1 text-indigo-600 hover:text-indigo-900"
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      )}
-                      {dateFilter.startDate && (
-                        <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs flex items-center">
-                          From: {formatDate(dateFilter.startDate)}
-                          <button 
-                            onClick={() => setDateFilter({...dateFilter, startDate: ''})}
-                            className="ml-1 text-indigo-600 hover:text-indigo-900"
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      )}
-                      {dateFilter.endDate && (
-                        <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs flex items-center">
-                          To: {formatDate(dateFilter.endDate)}
-                          <button 
-                            onClick={() => setDateFilter({...dateFilter, endDate: ''})}
                             className="ml-1 text-indigo-600 hover:text-indigo-900"
                           >
                             ✕
@@ -862,17 +788,7 @@ const InventoryTable = () => {
                                     </span>
                                   </td>
                                   <td>
-                                    <span 
-                                      className="text-sm cursor-pointer hover:text-indigo-600 inline-block"
-                                      onClick={() => {
-                                        const dateStr = item.timestamp.toISOString().split('T')[0];
-                                        setDateFilter({
-                                          startDate: dateStr,
-                                          endDate: dateStr
-                                        });
-                                      }}
-                                      title="Filter by this date"
-                                    >
+                                    <span className="text-sm">
                                       {isMobile ? 
                                         item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 
                                         item.timestamp.toLocaleDateString()
@@ -1003,7 +919,7 @@ const InventoryTable = () => {
               
               <button
                 onClick={clearFilters}
-                className={`flex flex-col items-center px-4 py-2 ${(filterCategory || searchTerm || dateFilter.startDate || dateFilter.endDate) ? 'bg-red-100' : 'bg-gray-100'} rounded-lg min-w-[80px]`}
+                className={`flex flex-col items-center px-4 py-2 ${(filterCategory || searchTerm) ? 'bg-red-100' : 'bg-gray-100'} rounded-lg min-w-[80px]`}
               >
                 <span className="text-2xl mb-1">🔍</span>
                 <span className="text-xs">Clear Filter</span>
