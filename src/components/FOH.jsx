@@ -16,7 +16,7 @@ const FOH = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userIdInput, setUserIdInput] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [userRole, setUserRole] = useState(null); // 'admin' or 'inventory'
+  const [userRole, setUserRole] = useState(null); // 'admin', 'inventory', or 'area51'
   
   // Checklist state variables
   const [checkListItems, setCheckListItems] = useState([]);
@@ -27,10 +27,14 @@ const FOH = () => {
   const [isUpdateMode, setIsUpdateMode] = useState(false);
   const [currentItemId, setCurrentItemId] = useState(null);
 
-  // Effect to handle automatic redirection for inventory users
+  // Effect to handle automatic redirection for inventory and area51 users
   useEffect(() => {
     if (isLoggedIn && userRole === 'inventory') {
       navigate('/inventory');
+    } else if (isLoggedIn && userRole === 'area51') {
+      // Store Area 51 authentication and navigate
+      sessionStorage.setItem('area51Auth', 'true');
+      navigate('/area-51-inventory');
     }
   }, [isLoggedIn, userRole, navigate]);
 
@@ -86,6 +90,11 @@ const FOH = () => {
       setUserRole('inventory');
       setErrorMessage('');
       // Will be redirected to inventory by the useEffect
+    } else if (userIdInput === '8900') {
+      setIsLoggedIn(true);
+      setUserRole('area51');
+      setErrorMessage('');
+      // Will be redirected to Area 51 by the useEffect
     } else {
       setErrorMessage('Invalid User ID. Please try again.');
     }
@@ -226,7 +235,11 @@ const FOH = () => {
           </form>
           <p className="mt-4 text-sm text-gray-600 text-center">
             Authorized User ID's only. Contact the Dev.   
-          </p>  
+          </p>
+          {/* Optional: Add a hint about available user IDs for development */}
+          {/* <div className="mt-4 text-xs text-gray-500 text-center">
+            <p>12345 - Admin | 5555 - Inventory | 8900 - Area 51</p>
+          </div> */}
         </div>
       </div>
     );
@@ -246,6 +259,25 @@ const FOH = () => {
           className="mt-4 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
         >
           Go to Inventory Management
+        </button>
+      </div>
+    );
+  }
+
+  // If logged in with ID 8900, this component won't actually render
+  // because we navigate directly to Area 51
+  // But as a fallback:
+  if (isLoggedIn && userRole === 'area51') {
+    return (
+      <div className="relative min-h-screen flex flex-col items-center justify-start pt-20">
+        <ParticlesBackground />
+        <h1 className="text-2xl font-bold mb-4">Redirecting to Area 51...</h1>
+        <p>If you're not redirected automatically, click the button below:</p>
+        <button
+          onClick={() => navigate('/area-51-inventory')}
+          className="mt-4 px-6 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700"
+        >
+          Go to Area 51
         </button>
       </div>
     );
@@ -369,6 +401,17 @@ const FOH = () => {
                     className="inventory-button w-full px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-all duration-200 ease-in-out transform hover:scale-102 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 shadow-md hover:shadow-lg"
                   >
                     Inventory Management
+                  </button>
+                  
+                  {/* Add Area 51 Button for Admin */}
+                  <button
+                    onClick={() => {
+                      sessionStorage.setItem('area51Auth', 'true');
+                      navigate('/area-51-inventory');
+                    }}
+                    className="inventory-button w-full px-6 py-3 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 transition-all duration-200 ease-in-out transform hover:scale-102 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 shadow-md hover:shadow-lg"
+                  >
+                    🚀 Area 51 - Quick Adjust
                   </button>
                 </div>
                 

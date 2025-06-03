@@ -5,6 +5,9 @@
   "dependencies": {
     "cra-template": "1.2.0",
     "firebase": "^10.x.x",
+    "framer-motion": "^12.15.0",
+    "lodash": "^4.17.21",
+    "papaparse": "^5.5.3",
     "react": "^18.x.x",
     "react-dom": "^18.x.x",
     "react-router-dom": "^7.0.2",
