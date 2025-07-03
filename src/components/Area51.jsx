@@ -12,6 +12,7 @@ const Area51 = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [updateAnimation, setUpdateAnimation] = useState({});
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
   
   // Pagination state
@@ -22,28 +23,55 @@ const Area51 = () => {
     fetchInventory();
   }, []);
 
+  // FIXED: Safe filtering with proper null checking
+  // Separate effect to reset pagination only when search changes
   useEffect(() => {
-    const filtered = inventory.filter(item =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredInventory(filtered);
-    // Reset to first page when search changes
     setCurrentPage(1);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    try {
+      const filtered = inventory.filter(item => {
+        // Check if item and item.name exist before using toLowerCase
+        if (!item || !item.name || typeof item.name !== 'string') {
+          return false; // Skip items without valid names
+        }
+        return item.name.toLowerCase().includes(searchTerm.toLowerCase());
+      });
+      setFilteredInventory(filtered);
+    } catch (error) {
+      console.error('Error filtering inventory:', error);
+      setFilteredInventory(inventory); // Show all items if filtering fails
+    }
   }, [searchTerm, inventory]);
 
   const fetchInventory = async () => {
     try {
+      setError(null); // Clear any previous errors
       const querySnapshot = await getDocs(collection(db, 'inventory'));
-      const items = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const items = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          // Ensure required fields have default values
+          name: data.name || 'Unknown Item',
+          category: data.category || '',
+          price: data.price || 0,
+          quantity: data.quantity || 0,
+          threshold: data.threshold || 10,
+          ...data
+        };
+      });
       setInventory(items);
       setFilteredInventory(items);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching inventory:', error);
+      setError('Failed to load inventory. Please check your connection.');
       setLoading(false);
+      // Set empty arrays to prevent further errors
+      setInventory([]);
+      setFilteredInventory([]);
     }
   };
 
@@ -51,7 +79,7 @@ const Area51 = () => {
     const item = inventory.find(i => i.id === itemId);
     if (!item) return;
 
-    const newQuantity = Math.max(0, item.quantity + change);
+    const newQuantity = Math.max(0, (item.quantity || 0) + change);
     
     try {
       await updateDoc(doc(db, 'inventory', itemId), {
@@ -70,12 +98,21 @@ const Area51 = () => {
       setTimeout(() => setUpdateAnimation({}), 300);
     } catch (error) {
       console.error('Error updating quantity:', error);
+      setError('Failed to update quantity. Please try again.');
+      // Clear error after 3 seconds
+      setTimeout(() => setError(null), 3000);
     }
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('area51Auth');
-    navigate('/foh');
+    try {
+      sessionStorage.removeItem('area51Auth');
+      navigate('/foh');
+    } catch (error) {
+      console.error('Error during logout:', error);
+      // Force navigation even if sessionStorage fails
+      window.location.href = '/foh';
+    }
   };
 
   // Pagination calculations
@@ -122,6 +159,35 @@ const Area51 = () => {
     return rangeWithDots;
   };
 
+  // Error state
+  if (error && !loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-red-50 to-red-100">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <h2 className="text-xl font-semibold text-red-800 mb-2">Connection Error</h2>
+          <p className="text-red-600 mb-4">{error}</p>
+          <div className="space-y-2">
+            <button
+              onClick={fetchInventory}
+              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Retry Connection
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Back to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50">
@@ -139,6 +205,19 @@ const Area51 = () => {
     <>
       <ParticlesBackground />
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 p-6">
+        {/* Error Alert */}
+        {error && (
+          <div className="fixed top-4 right-4 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg">
+            <span className="block sm:inline">{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="ml-2 text-red-500 hover:text-red-700"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -253,18 +332,18 @@ const Area51 = () => {
               <table className="inventory-table w-full">
                 <thead className="sticky top-0 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-200">
                   <tr>
-                    <th className="text-left font-semibold text-gray-700">Item Name</th>
-                    <th className="text-left font-semibold text-gray-700">Category</th>
-                    <th className="text-center font-semibold text-gray-700">Quantity</th>
-                    <th className="text-center font-semibold text-gray-700">Status</th>
-                    <th className="text-center font-semibold text-gray-700">Quick Adjust</th>
+                    <th className="text-left font-semibold text-gray-700 p-4">Item Name</th>
+                    <th className="text-left font-semibold text-gray-700 p-4">Category</th>
+                    <th className="text-center font-semibold text-gray-700 p-4">Quantity</th>
+                    <th className="text-center font-semibold text-gray-700 p-4">Status</th>
+                    <th className="text-center font-semibold text-gray-700 p-4">Quick Adjust</th>
                   </tr>
                 </thead>
                 <tbody>
                   <AnimatePresence>
                     {currentItems.length > 0 ? (
                       currentItems.map((item) => {
-                        const isLowStock = item.quantity <= (item.threshold || 10);
+                        const isLowStock = (item.quantity || 0) <= (item.threshold || 10);
                         return (
                           <motion.tr
                             key={item.id}
@@ -274,13 +353,13 @@ const Area51 = () => {
                             transition={{ duration: 0.3 }}
                             className="hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50 transition-all duration-200 border-b border-gray-100"
                           >
-                            <td>
+                            <td className="p-4">
                               <div>
-                                <div className="font-medium">{item.name}</div>
+                                <div className="font-medium">{item.name || 'Unknown Item'}</div>
                                 <div className="text-sm text-gray-500">${parseFloat(item.price || 0).toFixed(2)}</div>
                               </div>
                             </td>
-                            <td>
+                            <td className="p-4">
                               {item.category ? (
                                 <span className="px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 text-xs font-semibold capitalize border border-purple-200">
                                   {item.category}
@@ -289,7 +368,7 @@ const Area51 = () => {
                                 <span className="text-gray-400 font-medium">—</span>
                               )}
                             </td>
-                            <td className="text-center">
+                            <td className="text-center p-4">
                               <AnimatePresence mode="wait">
                                 <motion.div
                                   key={item.quantity}
@@ -302,19 +381,21 @@ const Area51 = () => {
                                   transition={{ duration: 0.3 }}
                                   className="text-sm"
                                 >
-                                  <div className="font-medium">{item.quantity}</div>
+                                  <div className="font-medium">{item.quantity || 0}</div>
                                   <div className="text-gray-500">/{item.threshold || 10}</div>
                                 </motion.div>
                               </AnimatePresence>
                             </td>
-                            <td className="text-center">
-                              <span className={`status-badge ${
-                                isLowStock ? 'status-low-stock' : 'status-in-stock'
+                            <td className="text-center p-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                isLowStock 
+                                  ? 'bg-red-100 text-red-700 border border-red-200' 
+                                  : 'bg-green-100 text-green-700 border border-green-200'
                               }`}>
                                 {isLowStock ? 'Low' : 'OK'}
                               </span>
                             </td>
-                            <td>
+                            <td className="p-4">
                               <div className="flex gap-1 justify-center flex-wrap">
                                 <motion.button
                                   whileHover={{ scale: 1.05 }}
@@ -366,14 +447,16 @@ const Area51 = () => {
                             </div>
                             <div className="text-gray-500">
                               <p className="font-medium">No items found</p>
-                              <p className="text-sm">Try adjusting your search: "{searchTerm}"</p>
+                              {searchTerm && <p className="text-sm">Try adjusting your search: "{searchTerm}"</p>}
                             </div>
-                            <button
-                              onClick={() => setSearchTerm('')}
-                              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 text-sm font-medium"
-                            >
-                              Clear Search
-                            </button>
+                            {searchTerm && (
+                              <button
+                                onClick={() => setSearchTerm('')}
+                                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 text-sm font-medium"
+                              >
+                                Clear Search
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

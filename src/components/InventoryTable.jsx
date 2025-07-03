@@ -14,6 +14,20 @@ import {
 
 const InventoryTable = () => {
   console.log("Component rendered");
+  
+  // Helper function to safely handle dates
+  const formatDate = (timestamp, isMobile = false) => {
+    const date = timestamp instanceof Date 
+      ? timestamp 
+      : timestamp?.toDate?.() 
+      ? timestamp.toDate() 
+      : new Date(timestamp || Date.now());
+    
+    return isMobile 
+      ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      : date.toLocaleDateString();
+  };
+  
   const [items, setItems] = useState([]);
   const [newItem, setNewItem] = useState({
     name: '',
@@ -73,18 +87,30 @@ const InventoryTable = () => {
     const q = collection(db, 'inventory');
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
-        const itemsList = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate?.() || new Date()
-        }));
+                const itemsList = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            // Ensure all fields have default values
+            name: data.name || 'Unknown Item',
+            quantity: data.quantity || 0,
+            price: data.price || 0,
+            threshold: data.threshold || 10,
+            category: data.category || '',
+            timestamp: data.timestamp || new Date(), // Keep original timestamp, helper will handle conversion
+            ...data
+          };
+        });
         setItems(itemsList);
         setLoading(false);
+        setError(null);
       },
       (error) => {
         setError("Failed to load inventory");
         setLoading(false);
         console.error('Error fetching items:', error);
+        // Set empty array to prevent further errors
+        setItems([]);
       }
     );
     
@@ -106,11 +132,15 @@ const InventoryTable = () => {
   const filteredItems = useMemo(() => {
     let result = [...items];
     
-    // Apply search filter
+    // Apply search filter with safe null checking
     if (searchTerm) {
-      result = result.filter(item => 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      result = result.filter(item => {
+        // Safe null checking
+        if (!item || !item.name || typeof item.name !== 'string') {
+          return false;
+        }
+        return item.name.toLowerCase().includes(searchTerm.toLowerCase());
+      });
     }
     
     // Apply category filter
@@ -199,6 +229,7 @@ const InventoryTable = () => {
       setTimeout(() => setNotification(null), 3000);
     } catch (error) {
       setNotification(error.message || 'An error occurred');
+      setTimeout(() => setNotification(null), 3000);
     }
   };
 
@@ -213,6 +244,7 @@ const InventoryTable = () => {
         setTimeout(() => setNotification(null), 3000);
       } catch (error) {
         setNotification(error.message || 'Failed to delete item');
+        setTimeout(() => setNotification(null), 3000);
       }
     }
   };
@@ -236,6 +268,7 @@ const InventoryTable = () => {
       setTimeout(() => setNotification(null), 3000);
     } catch (error) {
       setNotification('Failed to undo action');
+      setTimeout(() => setNotification(null), 3000);
     }
   };
 
@@ -250,7 +283,7 @@ const InventoryTable = () => {
         item.quantity,
         item.price,
         item.quantity <= item.threshold ? 'Low Stock' : 'In Stock',
-        new Date(item.timestamp).toLocaleDateString()
+        formatDate(item.timestamp)
       ].join(','))
     ].join('\n');
 
@@ -268,12 +301,13 @@ const InventoryTable = () => {
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
+  // FIXED: Safe startEditing function with proper null checks
   const startEditing = (item) => {
     setEditingId(item.id);
     setNewItem({
-      name: item.name,
-      quantity: item.quantity.toString(),
-      price: item.price.toString(),
+      name: item.name || '',
+      quantity: (item.quantity || 0).toString(),      // ✅ SAFE
+      price: (item.price || 0).toString(),            // ✅ SAFE
       threshold: (item.threshold || 10).toString(),
       category: item.category || ''
     });
@@ -294,8 +328,8 @@ const InventoryTable = () => {
   };
 
   const totalItems = items.length;
-  const totalValue = items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-  const lowStockItems = items.filter(item => item.quantity <= (item.threshold || 10)).length;
+  const totalValue = items.reduce((sum, item) => sum + ((item.quantity || 0) * (item.price || 0)), 0);
+  const lowStockItems = items.filter(item => (item.quantity || 0) <= (item.threshold || 10)).length;
 
   // Notification component
   const Notification = ({ message }) => (
@@ -306,6 +340,12 @@ const InventoryTable = () => {
       className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50"
     >
       {message}
+      <button
+        onClick={() => setNotification(null)}
+        className="ml-2 text-white hover:text-gray-200"
+      >
+        ×
+      </button>
     </motion.div>
   );
 
@@ -461,6 +501,19 @@ const InventoryTable = () => {
           </button>
         )}
 
+        {/* Error Alert */}
+        {error && (
+          <div className="fixed top-16 right-4 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg">
+            <span className="block sm:inline">{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="ml-2 text-red-500 hover:text-red-700"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Sidebar with mobile overlay */}
         <div className={`
           ${isMobile ? 'fixed inset-0 z-40' : 'relative'}
@@ -612,12 +665,6 @@ const InventoryTable = () => {
           </header>
 
           <main className={`${isMobile ? 'px-4' : 'px-6'}`}>
-            {/* Error display */}
-            {error && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                {error}
-              </div>
-            )}
             
             {/* Filters and Table */}
             <div className="table-container mt-6">
@@ -715,38 +762,38 @@ const InventoryTable = () => {
                       <thead className="sticky top-0 bg-white">
                         <tr>
                           <th 
-                            className={`cursor-pointer ${isMobile ? 'sticky left-0 bg-gray-50 z-10' : ''}`}
+                            className={`cursor-pointer ${isMobile ? 'sticky left-0 bg-gray-50 z-10 p-4' : ''}`}
                             onClick={() => handleSort('name')}
                           >
                             Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
                           </th>
                           <th 
-                            className="cursor-pointer"
+                            className="cursor-pointer p-4"
                             onClick={() => handleSort('category')}
                           >
                             Category {sortField === 'category' && (sortDirection === 'asc' ? '↑' : '↓')}
                           </th>
                           <th 
-                            className="cursor-pointer"
+                            className="cursor-pointer p-4"
                             onClick={() => handleSort('quantity')}
                           >
                             Quantity {sortField === 'quantity' && (sortDirection === 'asc' ? '↑' : '↓')}
                           </th>
-                          <th>Status</th>
+                          <th className="p-4">Status</th>
                           <th 
-                            className="cursor-pointer"
+                            className="cursor-pointer p-4"
                             onClick={() => handleSort('timestamp')}
                           >
                             Updated {sortField === 'timestamp' && (sortDirection === 'asc' ? '↑' : '↓')}
                           </th>
-                          <th className="text-center">Actions</th>
+                          <th className="text-center p-4">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         <AnimatePresence>
                           {currentItems.length > 0 ? (
                             currentItems.map((item) => {
-                              const isLowStock = item.quantity <= (item.threshold || 10);
+                              const isLowStock = (item.quantity || 0) <= (item.threshold || 10);
                               return (
                                 <motion.tr
                                   key={item.id}
@@ -755,13 +802,13 @@ const InventoryTable = () => {
                                   exit={{ opacity: 0, y: -20 }}
                                   transition={{ duration: 0.3 }}
                                 >
-                                  <td className={isMobile ? 'sticky left-0 bg-white z-10' : ''}>
+                                  <td className={isMobile ? 'sticky left-0 bg-white z-10 p-4' : 'p-4'}>
                                     <div>
-                                      <div className="font-medium">{item.name}</div>
-                                      <div className="text-sm text-gray-500">${parseFloat(item.price).toFixed(2)}</div>
+                                      <div className="font-medium">{item.name || 'Unknown Item'}</div>
+                                      <div className="text-sm text-gray-500">${parseFloat(item.price || 0).toFixed(2)}</div>
                                     </div>
                                   </td>
-                                  <td>
+                                  <td className="p-4">
                                     {item.category ? (
                                       <span 
                                         className="px-2 py-1 rounded-full bg-gray-100 text-xs font-medium capitalize cursor-pointer hover:bg-gray-200 inline-block"
@@ -774,39 +821,38 @@ const InventoryTable = () => {
                                       <span className="text-gray-400">-</span>
                                     )}
                                   </td>
-                                  <td>
+                                  <td className="p-4">
                                     <div className="text-sm">
-                                      <div className="font-medium">{item.quantity}</div>
+                                      <div className="font-medium">{item.quantity || 0}</div>
                                       <div className="text-gray-500">/{item.threshold || 10}</div>
                                     </div>
                                   </td>
-                                  <td>
-                                    <span className={`status-badge ${
-                                      isLowStock ? 'status-low-stock' : 'status-in-stock'
+                                  <td className="p-4">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                      isLowStock 
+                                        ? 'bg-red-100 text-red-700 border border-red-200' 
+                                        : 'bg-green-100 text-green-700 border border-green-200'
                                     } ${isMobile ? 'text-xs' : ''}`}>
                                       {isLowStock ? 'Low' : 'OK'}
                                     </span>
                                   </td>
-                                  <td>
+                                  <td className="p-4">
                                     <span className="text-sm">
-                                      {isMobile ? 
-                                        item.timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 
-                                        item.timestamp.toLocaleDateString()
-                                      }
+                                      {formatDate(item.timestamp, isMobile)}
                                     </span>
                                   </td>
-                                  <td>
+                                  <td className="p-4">
                                     <div className="flex gap-1 justify-center">
                                       <button
                                         onClick={() => startEditing(item)}
-                                        className={`action-button text-blue-600 ${isMobile ? 'p-3' : 'p-2'}`}
+                                        className={`action-button text-blue-600 hover:bg-blue-50 rounded-lg ${isMobile ? 'p-3' : 'p-2'}`}
                                         title="Edit Item"
                                       >
                                         ✏️
                                       </button>
                                       <button
                                         onClick={() => handleDeleteItem(item.id)}
-                                        className={`action-button text-red-600 ${isMobile ? 'p-3' : 'p-2'}`}
+                                        className={`action-button text-red-600 hover:bg-red-50 rounded-lg ${isMobile ? 'p-3' : 'p-2'}`}
                                         title="Delete Item"
                                       >
                                         🗑️
@@ -819,7 +865,10 @@ const InventoryTable = () => {
                           ) : (
                             <tr>
                               <td colSpan="6" className="text-center py-4 text-gray-500">
-                                No items match your current filters
+                                {searchTerm || filterCategory 
+                                  ? 'No items match your current filters' 
+                                  : 'No items found'
+                                }
                               </td>
                             </tr>
                           )}
