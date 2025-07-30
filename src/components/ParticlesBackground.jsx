@@ -51,7 +51,7 @@ const ParticlesBackground = () => {
               width: 1
             },
             move: {
-              enable: true,
+              enable: false, // Disable movement for particles
               speed: 3,
               direction: 'none',
               random: false,
