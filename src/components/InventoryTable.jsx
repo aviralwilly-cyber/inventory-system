@@ -87,7 +87,7 @@ const InventoryTable = () => {
     const q = collection(db, 'inventory');
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
-                const itemsList = snapshot.docs.map(doc => {
+        const itemsList = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -306,8 +306,8 @@ const InventoryTable = () => {
     setEditingId(item.id);
     setNewItem({
       name: item.name || '',
-      quantity: (item.quantity || 0).toString(),      // ✅ SAFE
-      price: (item.price || 0).toString(),            // ✅ SAFE
+      quantity: (item.quantity || 0).toString(),
+      price: (item.price || 0).toString(),
       threshold: (item.threshold || 10).toString(),
       category: item.category || ''
     });
@@ -389,61 +389,61 @@ const InventoryTable = () => {
             
             <form onSubmit={handleSubmit} className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
               <div className={`${isMobile ? '' : 'col-span-2'}`}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
+                <label className="block text-base font-medium text-gray-700 mb-1">Item Name</label>
                 <input
                   type="text"
                   placeholder="Item Name"
-                  className={`form-input w-full ${formErrors.name ? 'border-red-500' : ''}`}
+                  className={`form-input w-full text-lg ${formErrors.name ? 'border-red-500' : ''}`}
                   value={newItem.name}
                   onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
                   required
                   autoFocus
                 />
-                {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
+                {formErrors.name && <p className="text-red-500 text-sm mt-1">{formErrors.name}</p>}
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                <label className="block text-base font-medium text-gray-700 mb-1">Quantity</label>
                 <input
                   type="number"
                   placeholder="Quantity"
-                  className={`form-input w-full ${formErrors.quantity ? 'border-red-500' : ''}`}
+                  className={`form-input w-full text-lg ${formErrors.quantity ? 'border-red-500' : ''}`}
                   value={newItem.quantity}
                   onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
                   required
                 />
-                {formErrors.quantity && <p className="text-red-500 text-xs mt-1">{formErrors.quantity}</p>}
+                {formErrors.quantity && <p className="text-red-500 text-sm mt-1">{formErrors.quantity}</p>}
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                <label className="block text-base font-medium text-gray-700 mb-1">Price ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   placeholder="Price"
-                  className={`form-input w-full ${formErrors.price ? 'border-red-500' : ''}`}
+                  className={`form-input w-full text-lg ${formErrors.price ? 'border-red-500' : ''}`}
                   value={newItem.price}
                   onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
                   required
                 />
-                {formErrors.price && <p className="text-red-500 text-xs mt-1">{formErrors.price}</p>}
+                {formErrors.price && <p className="text-red-500 text-sm mt-1">{formErrors.price}</p>}
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Threshold</label>
+                <label className="block text-base font-medium text-gray-700 mb-1">Threshold</label>
                 <input
                   type="number"
                   placeholder="Low Stock Threshold"
-                  className="form-input w-full"
+                  className="form-input w-full text-lg"
                   value={newItem.threshold}
                   onChange={(e) => setNewItem({ ...newItem, threshold: e.target.value })}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label className="block text-base font-medium text-gray-700 mb-1">Category</label>
                 <select
-                  className={`form-input w-full bg-white ${formErrors.category ? 'border-red-500' : ''}`}
+                  className={`form-input w-full bg-white text-lg ${formErrors.category ? 'border-red-500' : ''}`}
                   value={newItem.category}
                   onChange={(e) => setNewItem({ ...newItem, category: e.target.value })}
                   required
@@ -455,7 +455,7 @@ const InventoryTable = () => {
                     </option>
                   ))}
                 </select>
-                {formErrors.category && <p className="text-red-500 text-xs mt-1">{formErrors.category}</p>}
+                {formErrors.category && <p className="text-red-500 text-sm mt-1">{formErrors.category}</p>}
               </div>
               
               <div className={`${isMobile ? '' : 'col-span-2'} flex gap-2 mt-4`}>
@@ -612,29 +612,38 @@ const InventoryTable = () => {
                   {history.length > 0 && (
                     <button 
                       onClick={handleUndo}
-                      className="flex items-center justify-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors w-full"
+                      className="flex items-center justify-center px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors w-full text-lg font-medium"
                     >
-                      <span className="mr-2">↩️</span>
+                      <span className="mr-2 text-xl">↩️</span>
                       <span>Undo Last Action</span>
                     </button>
                   )}
                   
                   <Link 
                     to="/check-list" 
-                    className="flex items-center justify-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors w-full"
+                    className="flex items-center justify-center px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors w-full text-lg font-medium"
                     onClick={() => isMobile && setSidebarOpen(false)}
                   >
-                    <span className="mr-2">📋</span>
-                    <span>View Check List</span>
+                    <span className="mr-2 text-xl">📋</span>
+                    <span>Order</span>
+                  </Link>
+                  
+                  <Link 
+                    to="/kitchen-binder" 
+                    className="flex items-center justify-center px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors w-full text-lg font-medium"
+                    onClick={() => isMobile && setSidebarOpen(false)}
+                  >
+                    <span className="mr-2 text-xl">📚</span>
+                    <span>Kitchen Binder</span>
                   </Link>
                   
                   <Link 
                     to="/area-51" 
-                    className="flex items-center justify-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors w-full"
+                    className="flex items-center justify-center px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors w-full text-lg font-medium"
                     onClick={() => isMobile && setSidebarOpen(false)}
                   >
-                    <span className="mr-2">🚀</span>
-                    <span>Area 51 - Quick Adjust</span>
+                    <span className="mr-2 text-xl">📦</span>
+                    <span>FOH Inventory Management</span>
                   </Link>
                 </div>
               </div>
@@ -648,19 +657,29 @@ const InventoryTable = () => {
             <div className="flex items-center justify-between flex-wrap">
               <div className="flex items-center flex-1">
                 <div className="ml-4">
-                  <h2 className={`${isMobile ? 'text-lg' : 'text-xl'} font-semibold`}>
+                  <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-semibold`}>
                     Manage your inventory items
                   </h2>
                 </div>
               </div>
               
-              <Link 
-                to="/check-list" 
-                className={`px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ${isMobile ? 'mr-2 mt-2' : 'mr-6'}`}
-              >
-                <span className="mr-2">📋</span>
-                <span>{isMobile ? 'List' : 'Check List'}</span>
-              </Link>
+              <div className="flex space-x-4">
+                <Link 
+                  to="/check-list" 
+                  className={`px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors ${isMobile ? 'mr-2 mt-2' : 'mr-2'} text-lg font-medium`}
+                >
+                  <span className="mr-2 text-xl">📋</span>
+                  <span>{isMobile ? 'Order' : 'Order'}</span>
+                </Link>
+                
+                <Link 
+                  to="/kitchen-binder" 
+                  className={`px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors ${isMobile ? 'mr-2 mt-2' : 'mr-6'} text-lg font-medium`}
+                >
+                  <span className="mr-2 text-xl">📚</span>
+                  <span>{isMobile ? 'Binder' : 'Kitchen Binder'}</span>
+                </Link>
+              </div>
             </div>
           </header>
 
@@ -952,7 +971,7 @@ const InventoryTable = () => {
                 className="flex flex-col items-center px-4 py-2 bg-yellow-100 rounded-lg min-w-[80px]"
               >
                 <span className="text-2xl mb-1">📋</span>
-                <span className="text-xs">Check List</span>
+                <span className="text-xs">Order</span>
               </Link>
               
               <button
