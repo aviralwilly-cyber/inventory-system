@@ -6,7 +6,6 @@ import ParticlesBackground from './ParticlesBackground';
 
 const CheckList = () => {
   const [checkListItems, setCheckListItems] = useState([]);
-  const [inventoryItems, setInventoryItems] = useState([]);
   const [lowStockItems, setLowStockItems] = useState([]);
   const [date, setDate] = useState('');
   const [needToOrder, setNeedToOrder] = useState('');
@@ -16,12 +15,12 @@ const CheckList = () => {
   const [currentItemId, setCurrentItemId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [checkedItems, setCheckedItems] = useState({});
-  const [notificationSummary, setNotificationSummary] = useState('');
-  const [showSummary, setShowSummary] = useState(false);
-  const [password, setPassword] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
   const [pendingAction, setPendingAction] = useState(null);
-  const [autoAddLowStock, setAutoAddLowStock] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,7 +38,6 @@ const CheckList = () => {
       }));
       setCheckListItems(items);
       
-      // Initialize checked state for existing items
       const checkedState = {};
       items.forEach(item => {
         checkedState[item.id] = {
@@ -71,13 +69,54 @@ const CheckList = () => {
         };
       });
       
-      // Filter low stock items
       const lowStock = items.filter(item => item.quantity <= item.threshold);
-      setInventoryItems(items);
       setLowStockItems(lowStock);
     } catch (error) {
       console.error('Error fetching inventory items:', error);
     }
+  };
+
+  const getItemStatus = (itemId) => {
+    const item = checkedItems[itemId];
+    if (!item) return 'pending';
+    if (item.received) return 'received';
+    if (item.ordered) return 'ordered';
+    return 'pending';
+  };
+
+  const getStatusDisplay = (status, isLowStock = false) => {
+    switch (status) {
+      case 'received':
+        return { text: 'Received', class: 'bg-green-100 text-green-800 border-green-200' };
+      case 'ordered':
+        return { text: 'Ordered', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+      default:
+        return { 
+          text: isLowStock ? 'Low Stock' : 'Pending', 
+          class: isLowStock 
+            ? 'bg-red-100 text-red-800 border-red-200' 
+            : 'bg-gray-100 text-gray-800 border-gray-200'
+        };
+    }
+  };
+
+  const getFilteredItems = () => {
+    return checkListItems.filter(item => {
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        if (!item.needToOrder?.toLowerCase().includes(searchLower) && 
+            !item.orderReceivedDate?.toLowerCase().includes(searchLower)) {
+          return false;
+        }
+      }
+      
+      if (statusFilter !== 'all') {
+        const status = getItemStatus(item.id);
+        if (status !== statusFilter) return false;
+      }
+      
+      return true;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -85,7 +124,6 @@ const CheckList = () => {
     
     try {
       if (isUpdateMode && currentItemId) {
-        // Update existing item
         await updateDoc(doc(db, 'checkList', currentItemId), {
           date,
           needToOrder,
@@ -95,7 +133,6 @@ const CheckList = () => {
           updatedAt: new Date()
         });
       } else {
-        // Add new item
         const newDoc = await addDoc(collection(db, 'checkList'), {
           date,
           needToOrder,
@@ -105,24 +142,19 @@ const CheckList = () => {
           createdAt: new Date()
         });
         
-        // Update checked items state
-        setCheckedItems({
-          ...checkedItems,
+        setCheckedItems(prev => ({
+          ...prev,
           [newDoc.id]: { ordered: false, received: false }
-        });
+        }));
       }
       
-      // Reset form
       setDate('');
       setNeedToOrder('');
       setOrderReceivedDate('');
       setIsUpdateMode(false);
       setCurrentItemId(null);
-      
-      // Close modal
       setIsModalOpen(false);
       
-      // Refresh list
       fetchCheckListItems();
     } catch (error) {
       console.error('Error handling checklist item:', error);
@@ -130,8 +162,7 @@ const CheckList = () => {
   };
 
   const handlePasswordSubmit = async () => {
-    // Simple password check (you should implement proper authentication)
-    if (password === '1234') { // Change this to your desired password
+    if (password === '1234') {
       setShowPasswordModal(false);
       setPassword('');
       
@@ -170,70 +201,25 @@ const CheckList = () => {
     setIsModalOpen(true);
   };
 
-  const handleCheckboxChange = async (itemId, type) => {
+  const handleStatusChange = async (itemId, newStatus) => {
     const newCheckedState = {
       ...checkedItems,
       [itemId]: {
-        ...checkedItems[itemId],
-        [type]: !checkedItems[itemId][type]
+        ordered: newStatus === 'ordered' || newStatus === 'received',
+        received: newStatus === 'received'
       }
     };
     setCheckedItems(newCheckedState);
     
-    // Update in database
     try {
       await updateDoc(doc(db, 'checkList', itemId), {
-        [type]: newCheckedState[itemId][type],
+        ordered: newCheckedState[itemId].ordered,
+        received: newCheckedState[itemId].received,
         updatedAt: new Date()
       });
     } catch (error) {
-      console.error('Error updating checkbox state:', error);
+      console.error('Error updating status:', error);
     }
-  };
-
-  const generatePurchaseSummary = () => {
-    const orderedItems = checkListItems.filter(item => 
-      checkedItems[item.id]?.ordered && !checkedItems[item.id]?.received
-    );
-    
-    let summary = '';
-    
-    // Add low stock items section
-    if (lowStockItems.length > 0) {
-      summary += '🚨 LOW STOCK ALERTS:\n\n';
-      lowStockItems.forEach(item => {
-        const percentageLeft = ((item.quantity / item.threshold) * 100).toFixed(0);
-        summary += `• ${item.name} - Only ${item.quantity} left (${percentageLeft}% of threshold)\n`;
-        summary += `  Category: ${item.category || 'N/A'} | Price: ${item.price.toFixed(2)}\n`;
-        summary += `  ⚠️ Need to order: ${item.threshold - item.quantity + 10} units\n\n`;
-      });
-      summary += `Total low stock items: ${lowStockItems.length}\n`;
-      summary += '\n' + '─'.repeat(50) + '\n\n';
-    }
-    
-    // Add manually created orders section
-    if (orderedItems.length > 0) {
-      summary += '📋 PENDING ORDERS:\n\n';
-      orderedItems.forEach(item => {
-        summary += `• ${item.needToOrder}\n`;
-        summary += `  Ordered on: ${item.date}\n`;
-        if (item.orderReceivedDate) {
-          summary += `  Notes: ${item.orderReceivedDate}\n`;
-        }
-        summary += '\n';
-      });
-      summary += `Total pending orders: ${orderedItems.length}\n`;
-    }
-    
-    if (lowStockItems.length === 0 && orderedItems.length === 0) {
-      summary = '✅ All items are well stocked and all orders have been received!';
-    } else {
-      summary += '\n' + '─'.repeat(50) + '\n';
-      summary += `📊 SUMMARY: ${lowStockItems.length} low stock alerts, ${orderedItems.length} pending orders`;
-    }
-    
-    setNotificationSummary(summary);
-    setShowSummary(true);
   };
 
   const addLowStockToChecklist = async () => {
@@ -268,45 +254,66 @@ const CheckList = () => {
     }
   };
 
+  const filteredItems = getFilteredItems();
+  const totalItems = checkListItems.length;
+  const completedItems = checkListItems.filter(item => getItemStatus(item.id) === 'received').length;
+  const pendingItemsCount = totalItems - completedItems;
+
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <ParticlesBackground />
       
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-800 dark:text-white">Order Check List</h1>
-            {lowStockItems.length > 0 && (
-              <p className="text-red-600 dark:text-red-400 mt-2 text-lg font-medium">
-                ⚠️ {lowStockItems.length} items are low on stock!
-              </p>
-            )}
+      <div className="container mx-auto px-6 py-8">
+        {/* Simplified Header */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Order Management System</h1>
+              <div className="flex items-center gap-6 mt-3 text-sm text-gray-600 dark:text-gray-400">
+                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
+                  Total: {totalItems}
+                </span>
+                <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-medium">
+                  Pending: {pendingItemsCount}
+                </span>
+                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
+                  Completed: {completedItems}
+                </span>
+                {lowStockItems.length > 0 && (
+                  <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full font-medium animate-pulse">
+                    Low Stock: {lowStockItems.length}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex space-x-4">
+
+          {/* Navigation */}
+          <div className="flex flex-wrap gap-3 mb-6">
             <button
               onClick={() => navigate(-1)}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition text-lg font-medium"
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
             >
               ← Back
             </button>
-            <Link to="/" className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition text-lg font-medium">
+            <Link 
+              to="/" 
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors"
+            >
               Dashboard
             </Link>
-            <Link to="/inventory" className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition text-lg font-medium">
+            <Link 
+              to="/inventory" 
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 transition-colors"
+            >
               Inventory
             </Link>
-            <button 
-              onClick={generatePurchaseSummary}
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition text-lg font-medium"
-            >
-              📊 Purchase Summary
-            </button>
             {lowStockItems.length > 0 && (
               <button 
                 onClick={addLowStockToChecklist}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-lg font-medium animate-pulse"
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
               >
-                🚨 Add Low Stock Items
+                Add Low Stock Items
               </button>
             )}
             <button 
@@ -318,286 +325,274 @@ const CheckList = () => {
                 setCurrentItemId(null);
                 setIsModalOpen(true);
               }}
-              className="inventory-button px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition text-lg font-medium"
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
-              ➕ Add New Order
+              + Add New Order
             </button>
+          </div>
+
+          {/* Search and Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search Orders</label>
+              <input
+                type="text"
+                placeholder="Search by item name or notes"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending Only</option>
+                <option value="ordered">Ordered Only</option>
+                <option value="received">Received Only</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Showing {filteredItems.length} of {totalItems} orders
           </div>
         </div>
 
+        {/* Table */}
         {isLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
-        ) : checkListItems.length > 0 ? (
+        ) : filteredItems.length > 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full table-fixed">
-                <thead className="bg-gray-100 dark:bg-gray-700">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="w-16 px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">✓ Ordered</th>
-                    <th className="w-16 px-6 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">✓ Received</th>
-                    <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Date</th>
-                    <th className="w-2/6 px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Need to Order</th>
-                    <th className="w-2/6 px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Notes</th>
-                    <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Item to Order
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Notes
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                  {checkListItems.map((item) => (
-                    <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${item.autoGenerated ? 'bg-red-50 dark:bg-red-900/20' : ''}`}>
-                      <td className="px-6 py-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={checkedItems[item.id]?.ordered || false}
-                          onChange={() => handleCheckboxChange(item.id, 'ordered')}
-                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                        />
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <input
-                          type="checkbox"
-                          checked={checkedItems[item.id]?.received || false}
-                          onChange={() => handleCheckboxChange(item.id, 'received')}
-                          className="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 cursor-pointer"
-                        />
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 font-medium">
-                        {item.date}
-                        {item.autoGenerated && (
-                          <span className="ml-2 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">Auto</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 font-medium">{item.needToOrder}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{item.orderReceivedDate}</td>
-                      <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">
-                        <button 
-                          onClick={() => handleUpdate(item)}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-4 text-base"
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(item.id)}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 text-base"
-                        >
-                          🗑️ Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredItems.map((item, index) => {
+                    const status = getItemStatus(item.id);
+                    const statusDisplay = getStatusDisplay(status, item.autoGenerated);
+                    
+                    return (
+                      <tr 
+                        key={item.id} 
+                        className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                          index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-750'
+                        } ${item.autoGenerated ? 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400' : ''}`}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                          {item.date}
+                          {item.autoGenerated && (
+                            <div className="text-xs text-red-600 dark:text-red-400">Auto-Generated</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-100">
+                          <div className="font-medium">{item.needToOrder}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${statusDisplay.class}`}>
+                            {statusDisplay.text}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                          {item.orderReceivedDate && (
+                            <div className="max-w-xs truncate" title={item.orderReceivedDate}>
+                              {item.orderReceivedDate}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="flex items-center space-x-2">
+                            {status === 'pending' && (
+                              <button
+                                onClick={() => handleStatusChange(item.id, 'ordered')}
+                                className="px-2 py-1 bg-yellow-500 text-white rounded text-xs hover:bg-yellow-600 transition-colors"
+                              >
+                                Mark Ordered
+                              </button>
+                            )}
+                            {(status === 'pending' || status === 'ordered') && (
+                              <button
+                                onClick={() => handleStatusChange(item.id, 'received')}
+                                className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors"
+                              >
+                                Mark Received
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => handleUpdate(item)}
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(item.id)}
+                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
-            <p className="text-gray-600 dark:text-gray-300 text-lg">No order items found.</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-12 text-center">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
+              No orders found
+            </h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              {searchTerm || statusFilter !== 'all' 
+                ? 'Try adjusting your search or filter criteria' 
+                : 'Start by adding items that need to be ordered'
+              }
+            </p>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Add Your First Order
+            </button>
           </div>
         )}
       </div>
 
-      {/* Modal for adding/updating items */}
+      {/* Simple Modal */}
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content dark:bg-gray-800 max-w-2xl">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
-              {isUpdateMode ? 'Update Order Item' : 'Add New Order Item'}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-4 gap-4 items-center">
-                <label className="text-gray-700 dark:text-gray-300 col-span-1 text-right text-lg font-medium">Date:</label>
-                <div className="col-span-3">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
+                {isUpdateMode ? 'Update Order Item' : 'Add New Order Item'}
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Date
+                  </label>
                   <input 
                     type="date" 
                     value={date} 
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-lg"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-4 gap-4 items-center">
-                <label className="text-gray-700 dark:text-gray-300 col-span-1 text-right text-lg font-medium">Need to Order:</label>
-                <div className="col-span-3">
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Need to Order
+                  </label>
                   <input 
                     type="text" 
                     value={needToOrder} 
                     onChange={(e) => setNeedToOrder(e.target.value)}
-                    className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-lg"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                     placeholder="Enter items that need to be ordered"
                   />
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-4 gap-4 items-start">
-                <label className="text-gray-700 dark:text-gray-300 col-span-1 text-right pt-3 text-lg font-medium">Notes:</label>
-                <div className="col-span-3">
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Notes
+                  </label>
                   <textarea 
                     value={orderReceivedDate} 
                     onChange={(e) => setOrderReceivedDate(e.target.value)}
-                    className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white modal-body text-lg"
-                    placeholder="Add notes (Optional - e.g., order details, delivery info)"
-                    rows="4"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Add notes (Optional)"
+                    rows="3"
                   />
                 </div>
               </div>
               
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-end gap-3 mt-6">
                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)}
-                  className="modal-cancel mr-3 px-6 py-3 border rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 text-lg font-medium"
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 transition-colors"
                 >
                   Cancel
                 </button>
                 <button 
-                  type="submit" 
-                  className="modal-button px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-medium"
+                  onClick={handleSubmit}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                 >
                   {isUpdateMode ? 'Update' : 'Save'}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
 
       {/* Password Modal */}
       {showPasswordModal && (
-        <div className="modal-overlay">
-          <div className="modal-content dark:bg-gray-800 max-w-md">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
-              Enter Password
-            </h2>
-            <div className="space-y-4">
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handlePasswordSubmit()}
-                className="w-full p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-lg"
-                placeholder="Enter password to proceed"
-                autoFocus
-              />
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => {
-                    setShowPasswordModal(false);
-                    setPassword('');
-                    setPendingAction(null);
-                  }}
-                  className="px-6 py-3 border rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 text-lg font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handlePasswordSubmit}
-                  className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 text-lg font-medium"
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Purchase Summary Modal */}
-      {showSummary && (
-        <div className="modal-overlay">
-          <div className="modal-content dark:bg-gray-800 max-w-3xl max-h-[80vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white flex items-center gap-3">
-              📊 Purchase Order Summary
-              <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
-                Generated on {new Date().toLocaleDateString()}
-              </span>
-            </h2>
-            
-            {lowStockItems.length > 0 && (
-              <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <h3 className="text-xl font-bold text-red-700 dark:text-red-400 mb-3 flex items-center gap-2">
-                  <span className="text-2xl">🚨</span> Low Stock Alerts ({lowStockItems.length})
-                </h3>
-                <div className="space-y-3">
-                  {lowStockItems.map((item) => {
-                    const percentageLeft = ((item.quantity / item.threshold) * 100).toFixed(0);
-                    const orderQuantity = item.threshold - item.quantity + 10;
-                    return (
-                      <div key={item.id} className="bg-white dark:bg-gray-700 p-3 rounded-lg border border-red-200 dark:border-red-700">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-semibold text-lg text-gray-800 dark:text-white">{item.name}</h4>
-                            <p className="text-sm text-gray-600 dark:text-gray-300">
-                              Category: {item.category || 'N/A'} | Price: ${item.price.toFixed(2)}
-                            </p>
-                            <p className="text-sm text-red-600 dark:text-red-400 font-medium mt-1">
-                              Current Stock: {item.quantity}/{item.threshold} ({percentageLeft}% of threshold)
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-lg font-bold text-red-700 dark:text-red-400">
-                              Order: {orderQuantity} units
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
+                Enter Password
+              </h2>
+              <div className="space-y-4">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handlePasswordSubmit()}
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter password to proceed"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setShowPasswordModal(false);
+                      setPassword('');
+                      setPendingAction(null);
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePasswordSubmit}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                  >
+                    Confirm
+                  </button>
                 </div>
               </div>
-            )}
-            
-            {checkListItems.filter(item => checkedItems[item.id]?.ordered && !checkedItems[item.id]?.received).length > 0 && (
-              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <h3 className="text-xl font-bold text-blue-700 dark:text-blue-400 mb-3 flex items-center gap-2">
-                  <span className="text-2xl">📋</span> Pending Orders ({checkListItems.filter(item => checkedItems[item.id]?.ordered && !checkedItems[item.id]?.received).length})
-                </h3>
-                <div className="space-y-3">
-                  {checkListItems.filter(item => checkedItems[item.id]?.ordered && !checkedItems[item.id]?.received).map((item) => (
-                    <div key={item.id} className="bg-white dark:bg-gray-700 p-3 rounded-lg border border-blue-200 dark:border-blue-700">
-                      <h4 className="font-semibold text-lg text-gray-800 dark:text-white">{item.needToOrder}</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-300">Ordered on: {item.date}</p>
-                      {item.orderReceivedDate && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Notes: {item.orderReceivedDate}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            <div className="mt-6 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2">Summary</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-gray-600 p-3 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-gray-300">Low Stock Items</p>
-                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">{lowStockItems.length}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-600 p-3 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-gray-300">Pending Orders</p>
-                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {checkListItems.filter(item => checkedItems[item.id]?.ordered && !checkedItems[item.id]?.received).length}
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={() => window.print()}
-                className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-lg font-medium"
-              >
-                🖨️ Print Summary
-              </button>
-              <button
-                onClick={() => setShowSummary(false)}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-lg font-medium"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>
