@@ -4,7 +4,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { orderBy } from 'lodash';
 import { motion, AnimatePresence } from 'framer-motion';
 import '../styles/style.css';
-import ParticlesBackground from './ParticlesBackground';
+// import ParticlesBackground from './ParticlesBackground';
 import { Link } from 'react-router-dom';
 import { 
   addInventoryItem, 
@@ -93,7 +93,7 @@ const InventoryTable = () => {
             id: doc.id,
             // Ensure all fields have default values
             name: data.name || 'Unknown Item',
-            quantity: data.quantity || 0,
+            quantity: data.quantity || '0', // Keep as string
             price: data.price || 0,
             threshold: data.threshold || 10,
             category: data.category || '',
@@ -178,7 +178,7 @@ const InventoryTable = () => {
     const errors = {};
     if (!newItem.name.trim()) errors.name = 'Name is required';
     if (!newItem.category) errors.category = 'Category is required';
-    if (!newItem.quantity || isNaN(newItem.quantity)) errors.quantity = 'Valid quantity required';
+    if (!newItem.quantity.trim()) errors.quantity = 'Quantity is required';
     if (!newItem.price || isNaN(newItem.price)) errors.price = 'Valid price required';
     return errors;
   };
@@ -201,7 +201,7 @@ const InventoryTable = () => {
     try {
       const itemData = {
         name: newItem.name,
-        quantity: parseInt(newItem.quantity),
+        quantity: newItem.quantity.trim(), // Keep as string
         price: parseFloat(newItem.price),
         threshold: parseInt(newItem.threshold),
         category: newItem.category
@@ -213,17 +213,18 @@ const InventoryTable = () => {
         trackAction('update', { id: editingId, ...itemData }, oldItem);
         setNotification('Item updated successfully');
         setEditingId(null);
+        setShowAddModal(false); // Close modal only when editing
       } else {
         const result = await addInventoryItem(itemData);
         trackAction('add', result);
         setNotification('Item added successfully');
+        // Keep modal open when adding new items
       }
       
       // Reset form
       setNewItem({ name: '', quantity: '', price: '', threshold: '10', category: '' });
       setEditingId(null);
       setFormErrors({});
-      setShowAddModal(false);
       
       // Auto-hide notification
       setTimeout(() => setNotification(null), 3000);
@@ -306,7 +307,7 @@ const InventoryTable = () => {
     setEditingId(item.id);
     setNewItem({
       name: item.name || '',
-      quantity: (item.quantity || 0).toString(),
+      quantity: item.quantity || '',
       price: (item.price || 0).toString(),
       threshold: (item.threshold || 10).toString(),
       category: item.category || ''
@@ -328,8 +329,14 @@ const InventoryTable = () => {
   };
 
   const totalItems = items.length;
-  const totalValue = items.reduce((sum, item) => sum + ((item.quantity || 0) * (item.price || 0)), 0);
-  const lowStockItems = items.filter(item => (item.quantity || 0) <= (item.threshold || 10)).length;
+  const totalValue = items.reduce((sum, item) => {
+    const qty = parseInt(item.quantity) || 0;
+    return sum + (qty * (item.price || 0));
+  }, 0);
+  const lowStockItems = items.filter(item => {
+    const qty = parseInt(item.quantity) || 0;
+    return qty <= (item.threshold || 10);
+  }).length;
 
   // Notification component
   const Notification = ({ message }) => (
@@ -398,6 +405,12 @@ const InventoryTable = () => {
                   onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
                   required
                   autoFocus
+                  ref={(input) => {
+                    // Auto-focus on name field when modal opens
+                    if (input && (showAddModal || editingId)) {
+                      setTimeout(() => input.focus(), 100);
+                    }
+                  }}
                 />
                 {formErrors.name && <p className="text-red-500 text-sm mt-1">{formErrors.name}</p>}
               </div>
@@ -405,8 +418,8 @@ const InventoryTable = () => {
               <div>
                 <label className="block text-base font-medium text-gray-700 mb-1">Quantity</label>
                 <input
-                  type="number"
-                  placeholder="Quantity"
+                  type="text"
+                  placeholder="e.g., 5 or 2 boxes of pop coke"
                   className={`form-input w-full text-lg ${formErrors.quantity ? 'border-red-500' : ''}`}
                   value={newItem.quantity}
                   onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
@@ -484,7 +497,7 @@ const InventoryTable = () => {
 
   return (
     <>
-      <ParticlesBackground />
+      {/* <ParticlesBackground /> */}
       <AnimatePresence>
         {notification && <Notification message={notification} />}
       </AnimatePresence>
@@ -812,7 +825,9 @@ const InventoryTable = () => {
                         <AnimatePresence>
                           {currentItems.length > 0 ? (
                             currentItems.map((item) => {
-                              const isLowStock = (item.quantity || 0) <= (item.threshold || 10);
+                              // Extract numeric value from quantity string for comparison
+                              const quantityNum = parseInt(item.quantity) || 0;
+                              const isLowStock = quantityNum <= (item.threshold || 10);
                               return (
                                 <motion.tr
                                   key={item.id}
@@ -842,8 +857,8 @@ const InventoryTable = () => {
                                   </td>
                                   <td className="p-4">
                                     <div className="text-sm">
-                                      <div className="font-medium">{item.quantity || 0}</div>
-                                      <div className="text-gray-500">/{item.threshold || 10}</div>
+                                      <div className="font-medium">{item.quantity || '0'}</div>
+                                      <div className="text-gray-500">Min: {item.threshold || 10}</div>
                                     </div>
                                   </td>
                                   <td className="p-4">
