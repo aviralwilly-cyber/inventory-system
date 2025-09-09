@@ -5,7 +5,7 @@ import { db } from '../config/firebase';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { INVENTORY_CATEGORIES as categories } from '../constants/categories';
 import '../styles/Modal.css';
-import ParticlesBackground from './ParticlesBackground';
+// import ParticlesBackground from './ParticlesBackground';
 
 const FOH = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -204,7 +204,7 @@ const FOH = () => {
   if (!isLoggedIn) {
     return (
       <div className="relative min-h-screen flex flex-col items-center justify-center">
-        <ParticlesBackground />
+        {/* <ParticlesBackground /> */}
         <div className="relative z-10 bg-white rounded-xl shadow-2xl p-8 w-96">
           <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
             FOH Login
@@ -251,7 +251,7 @@ const FOH = () => {
   if (isLoggedIn && userRole === 'inventory') {
     return (
       <div className="relative min-h-screen flex flex-col items-center justify-start pt-20">
-        <ParticlesBackground />
+        {/* <ParticlesBackground /> */}
         <h1 className="text-2xl font-bold mb-4">Redirecting to Inventory Management...</h1>
         <p>If you're not redirected automatically, click the button below:</p>
         <button
@@ -270,7 +270,7 @@ const FOH = () => {
   if (isLoggedIn && userRole === 'area51') {
     return (
       <div className="relative min-h-screen flex flex-col items-center justify-start pt-20">
-        <ParticlesBackground />
+        {/* <ParticlesBackground /> */}
         <h1 className="text-2xl font-bold mb-4">Redirecting to Area 51...</h1>
         <p>If you're not redirected automatically, click the button below:</p>
         <button
@@ -286,7 +286,7 @@ const FOH = () => {
   // If logged in with ID 12345, show FOH management content
   return (
     <div className="relative min-h-screen flex flex-col">
-      <ParticlesBackground />
+      {/* <ParticlesBackground /> */}
       
       <div className="relative z-10 flex-1 flex flex-col items-center justify-start pt-20">
         <h1 className="text-2xl font-bold mb-4">Front of House Management</h1>

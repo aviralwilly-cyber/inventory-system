@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import ParticlesBackground from './ParticlesBackground';
+// import ParticlesBackground from './ParticlesBackground';
 import '../styles/style.css';
 
 const Area51Login = () => {
@@ -30,7 +30,7 @@ const Area51Login = () => {
 
   return (
     <>
-      <ParticlesBackground />
+      {/* <ParticlesBackground /> */}
       <div className="min-h-screen flex items-center justify-center p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
